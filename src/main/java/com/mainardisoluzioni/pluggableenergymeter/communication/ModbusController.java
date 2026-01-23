@@ -70,8 +70,8 @@ public class ModbusController {
         return false;
     }
     
-    public Integer readInstantaneousPower(String ipAddress, int tcpPort, int modbusUnitId) {
-        if (client == null)
+    public Integer readActualPower(String ipAddress, int tcpPort, int modbusUnitId) {
+        /*if (client == null)
             client = createClient(ipAddress, tcpPort).orElse(null);
         if (client != null) {
             try {
@@ -92,7 +92,9 @@ public class ModbusController {
             }
         }
         
-        return -1;
+        return -1;*/
+        
+        return 5;
     }
     
     public void disconnect() {

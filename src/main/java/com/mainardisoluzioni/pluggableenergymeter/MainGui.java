@@ -19,6 +19,9 @@ package com.mainardisoluzioni.pluggableenergymeter;
 import com.mainardisoluzioni.pluggableenergymeter.communication.ModbusController;
 import com.mainardisoluzioni.pluggableenergymeter.logging.JTextAreaHandler;
 import com.mainardisoluzioni.pluggableenergymeter.logging.LevaGuiFormatter;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -59,12 +62,14 @@ public class MainGui extends javax.swing.JFrame {
         
         controller = new ModbusController();
         
+        actualPowers = new ArrayList<>();
+        
         dataHoardingWorker = new SwingWorker<>() {
             @Override
             protected List<Integer> doInBackground() throws Exception {
                 List<Integer> result = new ArrayList<>();
                 while(!isCancelled()) {
-                    Integer instantaneousPower = controller.readInstantaneousPower(
+                    Integer actualPower = controller.readActualPower(
                             properties.getProperty(
                                     ENERGY_METER_IP_ADDRESS_KEY,
                                     "Not found"
@@ -77,22 +82,55 @@ public class MainGui extends javax.swing.JFrame {
                                     )
                             )
                     );
-                    if (instantaneousPower != null && instantaneousPower.compareTo(0) > 0) {
-                        publish(instantaneousPower);
-                        result.add(instantaneousPower);
+                    if (actualPower != null && actualPower.compareTo(0) > 0) {
+                        publish(actualPower);
+                        result.add(actualPower);
                     }
-                    Thread.sleep(5000);
+                    Thread.sleep(1000);
                 }
-                controller.disconnect();
                 
                 return result;
             }
 
             @Override
             protected void process(List<Integer> chunks) {
-                for (Integer instantaneousPower : chunks)
-                    logger.log(Level.INFO, "Instantaneous power read: {0}", instantaneousPower);
+                for (Integer actualPower : chunks)
+                    logger.log(Level.INFO, "Actual power: {0} W", actualPower);
+                readCounter += chunks.size();
+                readCounterLabel.setText("Read counter: " + readCounter);
+                actualPowers.addAll(chunks);
             }
+
+            @Override
+            protected void done() {
+                controller.disconnect();
+                logger.info("Modbus disconnected correclty");
+                try {
+                    String csvFilePath = properties.getProperty(CSV_FILE_PATH_KEY);
+                    if (csvFilePath != null && !csvFilePath.isBlank()) {
+                        FileWriter csvFileWriter = null;
+                        BufferedWriter csvBufferedWriter = null;
+                        try {
+                            csvFileWriter = new FileWriter(csvFilePath);
+                            csvBufferedWriter = new BufferedWriter(csvFileWriter);
+                            for (Integer actualPower : actualPowers) {
+                                csvBufferedWriter.write(actualPower.toString());
+                                csvBufferedWriter.newLine();
+                            }
+                        } catch (IOException ex) {
+                            logger.warning(ex.getLocalizedMessage());
+                        } finally {
+                            if (csvBufferedWriter != null)
+                                csvBufferedWriter.close();
+                            if (csvFileWriter != null)
+                                csvFileWriter.close();
+                        }
+                    }
+                } catch (IOException ex) {
+                    logger.warning(ex.getLocalizedMessage());
+                }
+            }
+            
         };
     }
     
@@ -118,6 +156,7 @@ public class MainGui extends javax.swing.JFrame {
         jPanel5 = new javax.swing.JPanel();
         startDataHoardingButton = new javax.swing.JButton();
         stopDataHoardingButton = new javax.swing.JButton();
+        readCounterLabel = new javax.swing.JLabel();
         jScrollPane1 = new javax.swing.JScrollPane();
         logs = new javax.swing.JTextArea();
         jLabel4 = new javax.swing.JLabel();
@@ -195,7 +234,7 @@ public class MainGui extends javax.swing.JFrame {
 
         jPanel4.setBorder(javax.swing.BorderFactory.createTitledBorder("Data hoarding"));
 
-        jPanel5.setLayout(new java.awt.GridLayout(1, 2, 25, 0));
+        jPanel5.setLayout(new java.awt.GridLayout(1, 3, 25, 0));
 
         startDataHoardingButton.setBackground(new java.awt.Color(102, 204, 0));
         startDataHoardingButton.setText("Start");
@@ -205,6 +244,7 @@ public class MainGui extends javax.swing.JFrame {
         stopDataHoardingButton.setText("Stop");
         stopDataHoardingButton.setEnabled(false);
         jPanel5.add(stopDataHoardingButton);
+        jPanel5.add(readCounterLabel);
 
         logs.setEditable(false);
         logs.setColumns(20);
@@ -219,12 +259,12 @@ public class MainGui extends javax.swing.JFrame {
             jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(jScrollPane1)
-                    .addComponent(jPanel5, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel4Layout.createSequentialGroup()
+                .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel4Layout.createSequentialGroup()
                         .addComponent(jLabel4)
-                        .addGap(0, 0, Short.MAX_VALUE)))
+                        .addGap(0, 578, Short.MAX_VALUE))
+                    .addComponent(jScrollPane1)
+                    .addComponent(jPanel5, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                 .addContainerGap())
         );
         jPanel4Layout.setVerticalGroup(
@@ -371,7 +411,10 @@ public class MainGui extends javax.swing.JFrame {
     private final Properties properties;
     private final String ENERGY_METER_IP_ADDRESS_KEY = "energymeter.ip";
     private final String ENERGY_METER_MODBUS_ID_KEY = "energymeter.modbus.id";
+    private final String CSV_FILE_PATH_KEY = "csv.file.path";
     private final ModbusController controller;
+    private int readCounter = 0;
+    private final List<Integer> actualPowers;
     private final SwingWorker<List<Integer>, Integer> dataHoardingWorker;
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -387,6 +430,7 @@ public class MainGui extends javax.swing.JFrame {
     private javax.swing.JPanel jPanel5;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTextArea logs;
+    private javax.swing.JLabel readCounterLabel;
     private javax.swing.JButton startDataHoardingButton;
     private javax.swing.JButton stopDataHoardingButton;
     private javax.swing.JButton testLinkButton;
