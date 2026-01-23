@@ -117,6 +117,7 @@ public class MainGui extends javax.swing.JFrame {
                                 csvBufferedWriter.write(actualPower.toString());
                                 csvBufferedWriter.newLine();
                             }
+                            logger.log(Level.INFO, "Data written on {0} CSV file", csvFilePath);
                         } catch (IOException ex) {
                             logger.warning(ex.getLocalizedMessage());
                         } finally {
