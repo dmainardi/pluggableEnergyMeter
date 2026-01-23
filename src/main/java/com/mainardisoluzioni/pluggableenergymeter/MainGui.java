@@ -111,13 +111,16 @@ public class MainGui extends javax.swing.JFrame {
                         FileWriter csvFileWriter = null;
                         BufferedWriter csvBufferedWriter = null;
                         try {
+                            boolean dataWritten = false;
                             csvFileWriter = new FileWriter(csvFilePath);
                             csvBufferedWriter = new BufferedWriter(csvFileWriter);
                             for (Integer actualPower : actualPowers) {
                                 csvBufferedWriter.write(actualPower.toString());
                                 csvBufferedWriter.newLine();
+                                dataWritten = true;
                             }
-                            logger.log(Level.INFO, "Data written on {0} CSV file", csvFilePath);
+                            if (dataWritten)
+                                logger.log(Level.INFO, "Data written on {0} CSV file", csvFilePath);
                         } catch (IOException ex) {
                             logger.warning(ex.getLocalizedMessage());
                         } finally {
