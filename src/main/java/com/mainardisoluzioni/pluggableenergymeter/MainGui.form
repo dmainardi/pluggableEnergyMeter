@@ -72,13 +72,13 @@
                   <Group type="102" attributes="0">
                       <EmptySpace min="-2" max="-2" attributes="0"/>
                       <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="energyMeterIpAddress" alignment="0" pref="169" max="32767" attributes="0"/>
+                          <Component id="energyMeterIpAddressTextField" alignment="0" pref="169" max="32767" attributes="0"/>
                           <Component id="jLabel1" alignment="0" min="-2" max="-2" attributes="0"/>
                       </Group>
                       <EmptySpace min="-2" max="-2" attributes="0"/>
                       <Group type="103" groupAlignment="0" attributes="0">
                           <Component id="jLabel2" min="-2" max="-2" attributes="0"/>
-                          <Component id="energyMeterModbusId" pref="179" max="32767" attributes="0"/>
+                          <Component id="energyMeterModbusIdTextField" pref="179" max="32767" attributes="0"/>
                       </Group>
                       <EmptySpace type="unrelated" min="-2" max="-2" attributes="0"/>
                       <Component id="jPanel3" max="32767" attributes="0"/>
@@ -98,8 +98,8 @@
                               </Group>
                               <EmptySpace max="-2" attributes="0"/>
                               <Group type="103" groupAlignment="3" attributes="0">
-                                  <Component id="energyMeterIpAddress" alignment="3" min="-2" max="-2" attributes="0"/>
-                                  <Component id="energyMeterModbusId" alignment="3" min="-2" max="-2" attributes="0"/>
+                                  <Component id="energyMeterIpAddressTextField" alignment="3" min="-2" max="-2" attributes="0"/>
+                                  <Component id="energyMeterModbusIdTextField" alignment="3" min="-2" max="-2" attributes="0"/>
                               </Group>
                           </Group>
                       </Group>
@@ -109,7 +109,7 @@
             </DimensionLayout>
           </Layout>
           <SubComponents>
-            <Component class="javax.swing.JTextField" name="energyMeterIpAddress">
+            <Component class="javax.swing.JTextField" name="energyMeterIpAddressTextField">
               <Properties>
                 <Property name="editable" type="boolean" value="false"/>
                 <Property name="text" type="java.lang.String" value="jTextField1"/>
@@ -120,7 +120,7 @@
                 <Property name="text" type="java.lang.String" value="IP address"/>
               </Properties>
             </Component>
-            <Component class="javax.swing.JTextField" name="energyMeterModbusId">
+            <Component class="javax.swing.JTextField" name="energyMeterModbusIdTextField">
               <Properties>
                 <Property name="editable" type="boolean" value="false"/>
                 <Property name="text" type="java.lang.String" value="jTextField2"/>

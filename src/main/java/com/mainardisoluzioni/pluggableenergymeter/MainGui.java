@@ -19,8 +19,11 @@ package com.mainardisoluzioni.pluggableenergymeter;
 import com.mainardisoluzioni.pluggableenergymeter.communication.ModbusController;
 import com.mainardisoluzioni.pluggableenergymeter.logging.JTextAreaHandler;
 import com.mainardisoluzioni.pluggableenergymeter.logging.LevaGuiFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 import javax.swing.SwingWorker;
 
 /**
@@ -40,6 +43,8 @@ public class MainGui extends javax.swing.JFrame {
         initComponents();
         
         testLinkButton.addActionListener(e -> testLink());
+        startDataHoardingButton.addActionListener(e -> startDataHoarding());
+        stopDataHoardingButton.addActionListener(e -> stopDataHoarding());
 
         this.properties = properties;
 
@@ -47,12 +52,50 @@ public class MainGui extends javax.swing.JFrame {
         logger.addHandler(new JTextAreaHandler(logs, new LevaGuiFormatter()));
         logger.setUseParentHandlers(false);
 
-        energyMeterIpAddress.setText(this.properties.getProperty(ENERGY_METER_IP_ADDRESS_KEY, "Not found"));
+        energyMeterIpAddressTextField.setText(this.properties.getProperty(ENERGY_METER_IP_ADDRESS_KEY, "Not found"));
         logger.fine("added ENERGY_METER_IP_ADDRESS_KEY");
-        energyMeterModbusId.setText(this.properties.getProperty(ENERGY_METER_MODBUS_ID_KEY, "Not found"));
+        energyMeterModbusIdTextField.setText(this.properties.getProperty(ENERGY_METER_MODBUS_ID_KEY, "Not found"));
         logger.fine("added ENERGY_METER_MODBUS_ID_KEY");
-    }
+        
+        controller = new ModbusController();
+        
+        dataHoardingWorker = new SwingWorker<>() {
+            @Override
+            protected List<Integer> doInBackground() throws Exception {
+                List<Integer> result = new ArrayList<>();
+                while(!isCancelled()) {
+                    Integer instantaneousPower = controller.readInstantaneousPower(
+                            properties.getProperty(
+                                    ENERGY_METER_IP_ADDRESS_KEY,
+                                    "Not found"
+                            ),
+                            502,
+                            Integer.parseInt(
+                                    properties.getProperty(
+                                            ENERGY_METER_MODBUS_ID_KEY,
+                                            "0"
+                                    )
+                            )
+                    );
+                    if (instantaneousPower != null && instantaneousPower.compareTo(0) > 0) {
+                        publish(instantaneousPower);
+                        result.add(instantaneousPower);
+                    }
+                    Thread.sleep(5000);
+                }
+                controller.disconnect();
+                
+                return result;
+            }
 
+            @Override
+            protected void process(List<Integer> chunks) {
+                for (Integer instantaneousPower : chunks)
+                    logger.log(Level.INFO, "Instantaneous power read: {0}", instantaneousPower);
+            }
+        };
+    }
+    
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -64,9 +107,9 @@ public class MainGui extends javax.swing.JFrame {
 
         jPanel1 = new javax.swing.JPanel();
         jPanel2 = new javax.swing.JPanel();
-        energyMeterIpAddress = new javax.swing.JTextField();
+        energyMeterIpAddressTextField = new javax.swing.JTextField();
         jLabel1 = new javax.swing.JLabel();
-        energyMeterModbusId = new javax.swing.JTextField();
+        energyMeterModbusIdTextField = new javax.swing.JTextField();
         jLabel2 = new javax.swing.JLabel();
         jPanel3 = new javax.swing.JPanel();
         testLinkButton = new javax.swing.JButton();
@@ -84,13 +127,13 @@ public class MainGui extends javax.swing.JFrame {
 
         jPanel2.setBorder(javax.swing.BorderFactory.createTitledBorder("Energy Meter"));
 
-        energyMeterIpAddress.setEditable(false);
-        energyMeterIpAddress.setText("jTextField1");
+        energyMeterIpAddressTextField.setEditable(false);
+        energyMeterIpAddressTextField.setText("jTextField1");
 
         jLabel1.setText("IP address");
 
-        energyMeterModbusId.setEditable(false);
-        energyMeterModbusId.setText("jTextField2");
+        energyMeterModbusIdTextField.setEditable(false);
+        energyMeterModbusIdTextField.setText("jTextField2");
 
         jLabel2.setText("ModBus unit ID");
 
@@ -124,12 +167,12 @@ public class MainGui extends javax.swing.JFrame {
             .addGroup(jPanel2Layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(energyMeterIpAddress, javax.swing.GroupLayout.DEFAULT_SIZE, 169, Short.MAX_VALUE)
+                    .addComponent(energyMeterIpAddressTextField, javax.swing.GroupLayout.DEFAULT_SIZE, 169, Short.MAX_VALUE)
                     .addComponent(jLabel1))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(jLabel2)
-                    .addComponent(energyMeterModbusId, javax.swing.GroupLayout.DEFAULT_SIZE, 179, Short.MAX_VALUE))
+                    .addComponent(energyMeterModbusIdTextField, javax.swing.GroupLayout.DEFAULT_SIZE, 179, Short.MAX_VALUE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(jPanel3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addContainerGap())
@@ -145,8 +188,8 @@ public class MainGui extends javax.swing.JFrame {
                             .addComponent(jLabel2))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(energyMeterIpAddress, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(energyMeterModbusId, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                            .addComponent(energyMeterIpAddressTextField, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(energyMeterModbusIdTextField, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
@@ -270,6 +313,28 @@ public class MainGui extends javax.swing.JFrame {
 
         worker.execute();   // schedules doInBackground() on a worker thread
     }
+    
+    private void startDataHoarding() {
+        // Disable button so the user can't test the link during dataHoarding
+        testLinkButton.setEnabled(false);
+        // Disable button so the user can't start the task twice
+        startDataHoardingButton.setEnabled(false);
+        // Enable button so the user can cancel the data hoarding execution
+        stopDataHoardingButton.setEnabled(true);
+        
+        dataHoardingWorker.execute();
+    }
+    
+    private void stopDataHoarding() {
+        // Enable button so the user can test the link
+        testLinkButton.setEnabled(true);
+        // Enable button so the user can start the data hoarding execution
+        startDataHoardingButton.setEnabled(true);
+        // Disable button
+        stopDataHoardingButton.setEnabled(false);
+        
+        dataHoardingWorker.cancel(false);
+    }
 
     /**
      * @param args the command line arguments
@@ -282,14 +347,14 @@ public class MainGui extends javax.swing.JFrame {
             configFilePath = "app.config";
         }
 
-        /* Set the Nimbus look and feel */
+        /* Set the Metal look and feel */
         //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
         /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
          * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html
          */
         try {
             for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
+                if ("Metal".equals(info.getName())) {
                     javax.swing.UIManager.setLookAndFeel(info.getClassName());
                     break;
                 }
@@ -306,10 +371,12 @@ public class MainGui extends javax.swing.JFrame {
     private final Properties properties;
     private final String ENERGY_METER_IP_ADDRESS_KEY = "energymeter.ip";
     private final String ENERGY_METER_MODBUS_ID_KEY = "energymeter.modbus.id";
+    private final ModbusController controller;
+    private final SwingWorker<List<Integer>, Integer> dataHoardingWorker;
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JTextField energyMeterIpAddress;
-    private javax.swing.JTextField energyMeterModbusId;
+    private javax.swing.JTextField energyMeterIpAddressTextField;
+    private javax.swing.JTextField energyMeterModbusIdTextField;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel4;

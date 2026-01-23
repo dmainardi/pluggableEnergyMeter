@@ -21,7 +21,9 @@ import com.digitalpetri.modbus.exceptions.ModbusExecutionException;
 import com.digitalpetri.modbus.exceptions.ModbusResponseException;
 import com.digitalpetri.modbus.exceptions.ModbusTimeoutException;
 import com.digitalpetri.modbus.pdu.ReadInputRegistersRequest;
+import com.digitalpetri.modbus.pdu.ReadInputRegistersResponse;
 import com.digitalpetri.modbus.tcp.client.NettyTcpClientTransport;
+import java.util.Optional;
 
 /**
  *
@@ -30,15 +32,24 @@ import com.digitalpetri.modbus.tcp.client.NettyTcpClientTransport;
 public class ModbusController {
     
     public static final int TRACE_AND_FOLLOW_ACTUAL_POWER_REGISTER_ADDRESS = 38;
-
-    public static boolean testConnection(String ipAddress, int tcpPort, int modbusUnitId) {
+    
+    private ModbusTcpClient client;
+    
+    private static Optional<ModbusTcpClient> createClient(String ipAddress, int tcpPort) {
         if (ipAddress != null && !ipAddress.isBlank()) {
             var transport = NettyTcpClientTransport.create(cfg -> {
                 cfg.setHostname(ipAddress);
                 cfg.setPort(tcpPort);
             });
 
-            var client = ModbusTcpClient.create(transport);
+            return Optional.of(ModbusTcpClient.create(transport));
+        }
+        return Optional.empty();
+    }
+
+    public static boolean testConnection(String ipAddress, int tcpPort, int modbusUnitId) {
+        var client = createClient(ipAddress, tcpPort).orElse(null);
+        if (client != null) {
             try {
                 client.connect();
 
@@ -49,7 +60,7 @@ public class ModbusController {
                                 1
                         )
                 );
-                
+
                 client.disconnect();
                 return true;
             } catch (ModbusExecutionException | ModbusResponseException | ModbusTimeoutException e) {
@@ -57,5 +68,52 @@ public class ModbusController {
             }
         }
         return false;
+    }
+    
+    public Integer readInstantaneousPower(String ipAddress, int tcpPort, int modbusUnitId) {
+        if (client == null)
+            client = createClient(ipAddress, tcpPort).orElse(null);
+        if (client != null) {
+            try {
+                if (!client.isConnected())
+                    client.connect();
+
+                ReadInputRegistersResponse readInputRegisters = client.readInputRegisters(
+                        modbusUnitId,
+                        new ReadInputRegistersRequest(
+                                TRACE_AND_FOLLOW_ACTUAL_POWER_REGISTER_ADDRESS,
+                                1
+                        )
+                );
+
+                return convertRegisterValue(readInputRegisters.registers());
+            } catch (ModbusExecutionException | ModbusResponseException | ModbusTimeoutException e) {
+                // NOOP
+            }
+        }
+        
+        return -1;
+    }
+    
+    public void disconnect() {
+        try {
+            if (client != null && client.isConnected())
+                client.disconnect();
+        } catch (ModbusExecutionException ex) {
+            // NOOP
+        }
+    }
+    
+    /**
+     * See https://www.baeldung.com/java-byte-array-to-number#1-byte-array-to-int-and-long
+     * @param readInputRegisters
+     * @return 
+     */
+    private int convertRegisterValue(byte[] readInputRegisters) {
+        int value = 0;
+        for (byte b : readInputRegisters)
+            value = (value << 8) + (b & 0xFF);
+        
+        return value;
     }
 }
