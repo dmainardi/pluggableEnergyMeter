@@ -17,13 +17,17 @@
 package com.mainardisoluzioni.pluggableenergymeter;
 
 import com.mainardisoluzioni.pluggableenergymeter.communication.ModbusController;
+import com.mainardisoluzioni.pluggableenergymeter.energy.EnergyInfo;
 import com.mainardisoluzioni.pluggableenergymeter.logging.JTextAreaHandler;
 import com.mainardisoluzioni.pluggableenergymeter.logging.LevaGuiFormatter;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
@@ -34,6 +38,9 @@ import javax.swing.SwingWorker;
  * @author Davide Mainardi <davide at mainardisoluzioni.com>
  */
 public class MainGui extends javax.swing.JFrame {
+    
+    private static final int SAMPLING_PERIOD_IN_MILLISECONDS = 1000;
+    private static final int FROM_WATT_MILLISECONDS_TO_WATT_HOURS = 3600000;
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(MainGui.class.getName());
 
@@ -62,12 +69,13 @@ public class MainGui extends javax.swing.JFrame {
         
         controller = new ModbusController();
         
-        actualPowers = new ArrayList<>();
+        energyInfos = new ArrayList<>();
         
         dataHoardingWorker = new SwingWorker<>() {
             @Override
-            protected List<Integer> doInBackground() throws Exception {
-                List<Integer> result = new ArrayList<>();
+            protected List<EnergyInfo> doInBackground() throws Exception {
+                List<EnergyInfo> result = new ArrayList<>();
+                BigDecimal cumulativeEnergyConsumption = BigDecimal.ZERO;
                 while(!isCancelled()) {
                     Integer actualPower = controller.readActualPower(
                             properties.getProperty(
@@ -83,22 +91,38 @@ public class MainGui extends javax.swing.JFrame {
                             )
                     );
                     if (actualPower != null && actualPower.compareTo(0) > 0) {
-                        publish(actualPower);
-                        result.add(actualPower);
+                        BigDecimal energyConsumption = BigDecimal.valueOf(actualPower * SAMPLING_PERIOD_IN_MILLISECONDS / FROM_WATT_MILLISECONDS_TO_WATT_HOURS);
+                        cumulativeEnergyConsumption = cumulativeEnergyConsumption.add(energyConsumption);
+                        EnergyInfo energyInfo = new EnergyInfo(
+                                actualPower,
+                                energyConsumption,
+                                cumulativeEnergyConsumption
+                        );
+                        
+                        publish(energyInfo);
+                        result.add(energyInfo);
                     }
-                    Thread.sleep(1000);
+                    Thread.sleep(SAMPLING_PERIOD_IN_MILLISECONDS);
                 }
                 
                 return result;
             }
 
             @Override
-            protected void process(List<Integer> chunks) {
-                for (Integer actualPower : chunks)
-                    logger.log(Level.INFO, "Actual power: {0} W", actualPower);
+            protected void process(List<EnergyInfo> chunks) {
+                NumberFormat italianNumberFormat = NumberFormat.getInstance(Locale.ITALY);
+                for (EnergyInfo energyInfo : chunks)
+                    logger.log(
+                            Level.INFO,
+                            "Actual power: {0} W\tCumulative consumption: {1} Wh",
+                            new Object[]{
+                                energyInfo.getActualPower(),
+                                italianNumberFormat.format(energyInfo.getCumulativeEnergyConsumption())
+                            }
+                    );
                 readCounter += chunks.size();
                 readCounterLabel.setText("Read counter: " + readCounter);
-                actualPowers.addAll(chunks);
+                energyInfos.addAll(chunks);
             }
 
             @Override
@@ -111,11 +135,18 @@ public class MainGui extends javax.swing.JFrame {
                         FileWriter csvFileWriter = null;
                         BufferedWriter csvBufferedWriter = null;
                         try {
+                            NumberFormat italianNumberFormat = NumberFormat.getInstance(Locale.ITALY);
                             boolean dataWritten = false;
                             csvFileWriter = new FileWriter(csvFilePath);
                             csvBufferedWriter = new BufferedWriter(csvFileWriter);
-                            for (Integer actualPower : actualPowers) {
-                                csvBufferedWriter.write(actualPower.toString());
+                            csvBufferedWriter.write("Actual power [W];Energy consumption [Wh];Cumulative consumption [Wh]");
+                            csvBufferedWriter.newLine();
+                            for (EnergyInfo energyInfo : energyInfos) {
+                                csvBufferedWriter.write(
+                                        energyInfo.getActualPower().toString() + ";" +
+                                        italianNumberFormat.format(energyInfo.getEnergyConsumption()) + ";" +
+                                        italianNumberFormat.format(energyInfo.getCumulativeEnergyConsumption())        
+                                );
                                 csvBufferedWriter.newLine();
                                 dataWritten = true;
                             }
@@ -418,8 +449,8 @@ public class MainGui extends javax.swing.JFrame {
     private final String CSV_FILE_PATH_KEY = "csv.file.path";
     private final ModbusController controller;
     private int readCounter = 0;
-    private final List<Integer> actualPowers;
-    private final SwingWorker<List<Integer>, Integer> dataHoardingWorker;
+    private final List<EnergyInfo> energyInfos;
+    private final SwingWorker<List<EnergyInfo>, EnergyInfo> dataHoardingWorker;
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JTextField energyMeterIpAddressTextField;
