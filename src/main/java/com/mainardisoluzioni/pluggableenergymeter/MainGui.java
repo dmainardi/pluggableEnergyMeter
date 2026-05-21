@@ -67,8 +67,6 @@ public class MainGui extends javax.swing.JFrame {
         
         controller = new ModbusController();
         
-        energyInfos = new ArrayList<>();
-        
         dataHoardingWorker = new SwingWorker<>() {
             @Override
             protected List<EnergyInfo> doInBackground() throws Exception {
@@ -77,6 +75,27 @@ public class MainGui extends javax.swing.JFrame {
                     samplingPeriodInMilliseconds = MINIMUM_SAMPLING_PERIOD_IN_MILLISECONDS;
                 List<EnergyInfo> result = new ArrayList<>();
                 BigDecimal cumulativeEnergyConsumption = BigDecimal.ZERO;
+                
+                try {
+                    String csvFilePath = properties.getProperty(CSV_FILE_PATH_KEY);
+                    if (csvFilePath != null && !csvFilePath.isBlank()) {
+                        try {
+                            csvFileWriter = new FileWriter(csvFilePath);
+                            csvBufferedWriter = new BufferedWriter(csvFileWriter);
+                            csvBufferedWriter.write("Actual power [W];Energy consumption [Wh];Cumulative consumption [Wh]");
+                            csvBufferedWriter.newLine();
+                        } catch (IOException ex) {
+                            logger.warning(ex.getLocalizedMessage());
+                            if (csvBufferedWriter != null)
+                                csvBufferedWriter.close();
+                            if (csvFileWriter != null)
+                                csvFileWriter.close();
+                        }
+                    }
+                } catch (IOException ex) {
+                    logger.warning(ex.getLocalizedMessage());
+                }
+                
                 while(!isCancelled()) {
                     Integer actualPower = controller.readActualPower(
                             properties.getProperty(
@@ -112,7 +131,20 @@ public class MainGui extends javax.swing.JFrame {
             @Override
             protected void process(List<EnergyInfo> chunks) {
                 NumberFormat italianNumberFormat = NumberFormat.getInstance(Locale.ITALY);
-                for (EnergyInfo energyInfo : chunks)
+                for (EnergyInfo energyInfo : chunks) {
+                    if (csvBufferedWriter != null) {
+                        try {
+                            csvBufferedWriter.write(
+                                    energyInfo.getActualPower().toString() + ";" +
+                                    italianNumberFormat.format(energyInfo.getEnergyConsumption()) + ";" +
+                                    italianNumberFormat.format(energyInfo.getCumulativeEnergyConsumption())        
+                            );
+                            csvBufferedWriter.newLine();
+                        } catch (IOException ex) {
+                            logger.warning(ex.getLocalizedMessage());
+                        }
+                    }
+                    
                     logger.log(
                             Level.INFO,
                             "Actual power: {0} W\tCumulative consumption: {1} Wh",
@@ -121,47 +153,24 @@ public class MainGui extends javax.swing.JFrame {
                                 italianNumberFormat.format(energyInfo.getCumulativeEnergyConsumption())
                             }
                     );
+                }
                 readCounter += chunks.size();
                 readCounterLabel.setText("Read counter: " + readCounter);
-                energyInfos.addAll(chunks);
             }
 
             @Override
             protected void done() {
                 controller.disconnect();
                 logger.info("Modbus disconnected correclty");
+                
                 try {
+                    if (csvBufferedWriter != null)
+                        csvBufferedWriter.close();
+                    if (csvFileWriter != null)
+                        csvFileWriter.close();
                     String csvFilePath = properties.getProperty(CSV_FILE_PATH_KEY);
-                    if (csvFilePath != null && !csvFilePath.isBlank()) {
-                        FileWriter csvFileWriter = null;
-                        BufferedWriter csvBufferedWriter = null;
-                        try {
-                            NumberFormat italianNumberFormat = NumberFormat.getInstance(Locale.ITALY);
-                            boolean dataWritten = false;
-                            csvFileWriter = new FileWriter(csvFilePath);
-                            csvBufferedWriter = new BufferedWriter(csvFileWriter);
-                            csvBufferedWriter.write("Actual power [W];Energy consumption [Wh];Cumulative consumption [Wh]");
-                            csvBufferedWriter.newLine();
-                            for (EnergyInfo energyInfo : energyInfos) {
-                                csvBufferedWriter.write(
-                                        energyInfo.getActualPower().toString() + ";" +
-                                        italianNumberFormat.format(energyInfo.getEnergyConsumption()) + ";" +
-                                        italianNumberFormat.format(energyInfo.getCumulativeEnergyConsumption())        
-                                );
-                                csvBufferedWriter.newLine();
-                                dataWritten = true;
-                            }
-                            if (dataWritten)
-                                logger.log(Level.INFO, "Data written on {0} CSV file", csvFilePath);
-                        } catch (IOException ex) {
-                            logger.warning(ex.getLocalizedMessage());
-                        } finally {
-                            if (csvBufferedWriter != null)
-                                csvBufferedWriter.close();
-                            if (csvFileWriter != null)
-                                csvFileWriter.close();
-                        }
-                    }
+                    if (csvFilePath != null && !csvFilePath.isBlank())
+                        logger.log(Level.INFO, "CSV file {0} closed successfully", csvFilePath);
                 } catch (IOException ex) {
                     logger.warning(ex.getLocalizedMessage());
                 }
@@ -454,8 +463,9 @@ public class MainGui extends javax.swing.JFrame {
     private final String CSV_FILE_PATH_KEY = "csv.file.path";
     private final ModbusController controller;
     private int readCounter = 0;
-    private final List<EnergyInfo> energyInfos;
     private final SwingWorker<List<EnergyInfo>, EnergyInfo> dataHoardingWorker;
+    private FileWriter csvFileWriter = null;
+    private BufferedWriter csvBufferedWriter = null;
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JTextField energyMeterIpAddressTextField;
