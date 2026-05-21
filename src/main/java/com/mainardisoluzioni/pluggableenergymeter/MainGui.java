@@ -24,6 +24,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,9 +39,6 @@ import javax.swing.SwingWorker;
  * @author Davide Mainardi <davide at mainardisoluzioni.com>
  */
 public class MainGui extends javax.swing.JFrame {
-    
-    private static final int SAMPLING_PERIOD_IN_MILLISECONDS = 1000;
-    private static final int FROM_WATT_MILLISECONDS_TO_WATT_HOURS = 3600000;
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(MainGui.class.getName());
 
@@ -74,6 +72,9 @@ public class MainGui extends javax.swing.JFrame {
         dataHoardingWorker = new SwingWorker<>() {
             @Override
             protected List<EnergyInfo> doInBackground() throws Exception {
+                int samplingPeriodInMilliseconds = Integer.parseInt(properties.getProperty(SAMPLING_PERIOD_IN_MILLISECONDS_KEY, String.valueOf(DEFAULT_SAMPLING_PERIOD_IN_MILLISECONDS)));
+                if (samplingPeriodInMilliseconds < MINIMUM_SAMPLING_PERIOD_IN_MILLISECONDS)
+                    samplingPeriodInMilliseconds = MINIMUM_SAMPLING_PERIOD_IN_MILLISECONDS;
                 List<EnergyInfo> result = new ArrayList<>();
                 BigDecimal cumulativeEnergyConsumption = BigDecimal.ZERO;
                 while(!isCancelled()) {
@@ -91,7 +92,7 @@ public class MainGui extends javax.swing.JFrame {
                             )
                     );
                     if (actualPower != null && actualPower.compareTo(0) > 0) {
-                        BigDecimal energyConsumption = BigDecimal.valueOf(actualPower * SAMPLING_PERIOD_IN_MILLISECONDS / FROM_WATT_MILLISECONDS_TO_WATT_HOURS);
+                        BigDecimal energyConsumption = BigDecimal.valueOf(actualPower * samplingPeriodInMilliseconds).divide(BigDecimal.valueOf(FROM_WATT_MILLISECONDS_TO_WATT_HOURS), 1, RoundingMode.HALF_UP);
                         cumulativeEnergyConsumption = cumulativeEnergyConsumption.add(energyConsumption);
                         EnergyInfo energyInfo = new EnergyInfo(
                                 actualPower,
@@ -102,7 +103,7 @@ public class MainGui extends javax.swing.JFrame {
                         publish(energyInfo);
                         result.add(energyInfo);
                     }
-                    Thread.sleep(SAMPLING_PERIOD_IN_MILLISECONDS);
+                    Thread.sleep(samplingPeriodInMilliseconds);
                 }
                 
                 return result;
@@ -443,9 +444,13 @@ public class MainGui extends javax.swing.JFrame {
         java.awt.EventQueue.invokeLater(() -> new MainGui(ConfigFileLoader.loadConfigFile(configFilePath)).setVisible(true));
     }
 
+    private static final int FROM_WATT_MILLISECONDS_TO_WATT_HOURS = 3600000;
+    private static final int DEFAULT_SAMPLING_PERIOD_IN_MILLISECONDS = 1000;
+    private static final int MINIMUM_SAMPLING_PERIOD_IN_MILLISECONDS = 100;
     private final Properties properties;
     private final String ENERGY_METER_IP_ADDRESS_KEY = "energymeter.ip";
     private final String ENERGY_METER_MODBUS_ID_KEY = "energymeter.modbus.id";
+    private final String SAMPLING_PERIOD_IN_MILLISECONDS_KEY = "sampling.period.in.milliseconds";
     private final String CSV_FILE_PATH_KEY = "csv.file.path";
     private final ModbusController controller;
     private int readCounter = 0;

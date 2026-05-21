@@ -1,3 +1,4 @@
 energymeter.ip=0.0.0.0
 energymeter.modbus.id=0
-csv.file.path=test
+sampling.period.in.milliseconds=1000
+csv.file.path=test.csv
